@@ -1,0 +1,17 @@
+.card .form-label {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 6px;
+}
+.input-group-text svg { width: 1rem; height: 1rem; }
+
+.auth-bg {
+  min-height: 100vh;                
+  background-image:
+    linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)),
+    url("../../assets/pietro-de-grandi-T7K4aEPoGGk-unsplash2.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
