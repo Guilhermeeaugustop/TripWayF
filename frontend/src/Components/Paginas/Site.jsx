@@ -1,7 +1,7 @@
 // src/Components/Paginas/Site.jsx
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { FaRoute, FaSearch, FaPlus, FaClock, FaMapMarkerAlt, FaTimes, FaCloudSun, FaSave } from "react-icons/fa";
+import { FaRoute, FaSearch, FaPlus, FaClock, FaMapMarkerAlt, FaTimes, FaCloudSun, FaSave, FaLandmark } from "react-icons/fa";
 import LogoutButton from "../BotaoLogout/LogoutButton.jsx";
 import Mapa from "../Mapa/Mapa.jsx";
 import BuscaMapa from "../Mapa/BuscaMapa.jsx";
@@ -28,17 +28,15 @@ function formatPhotonFeature(feature) {
   return props.name || props.street || props.city || props.county || props.country || "Local selecionado";
 }
 
-
 export default function Site() {
   const { viagemId } = useParams();
   const [q, setQ] = useState("");
 
-  // mapa e marcadores
-  const [mapCenter, setMapCenter] = useState({ lat: 20, lng: 0 });
-  const [mapZoom, setMapZoom] = useState(2);
-  const [mapMarkers, setMapMarkers] = useState([]); // Marcador de preview
+  const [mapCenter, setMapCenter] = useState({ lat: -22.9068, lng: -43.1729 });
+  const [mapZoom, setMapZoom] = useState(13);
+  const [mapMarkers, setMapMarkers] = useState([]); 
+  const [poiMarkers, setPoiMarkers] = useState([]); 
 
-  // rota
   const [rotaAtiva, setRotaAtiva] = useState(false);
   const [pontoA, setPontoA] = useState(null);
   const [pontoB, setPontoB] = useState(null);
@@ -49,46 +47,56 @@ export default function Site() {
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
+  const [isLoadingPOIs, setIsLoadingPOIs] = useState(false);
 
-  // Gerenciamento de Itinerário por Dias
-  const [itineraryDays, setItineraryDays] = useState({
-    "Dia 1": [], 
-  });
+  const [itineraryDays, setItineraryDays] = useState({ "Dia 1": [] });
   const [activeDayKey, setActiveDayKey] = useState("Dia 1");
   const activeItineraryList = itineraryDays[activeDayKey] || [];
 
-  // Estados do painel de adição
   const [lastSearchResult, setLastSearchResult] = useState(null);
   const [itineraryTime, setItineraryTime] = useState("09:00");
   const [itemName, setItemName] = useState("");
 
   const ORS_KEY = import.meta.env.VITE_ORS_KEY || "";
   const OWM_KEY = import.meta.env.VITE_OPENWEATHER_KEY || "";
-
+  
   const lista = useMemo(() => {
     const t = q.trim().toLowerCase();
     return t ? DESTINOS.filter((d) => d.nome.toLowerCase().includes(t)) : DESTINOS;
   }, [q]);
 
-
   const onBuscaResult = (r) => {
     setMapCenter({ lat: r.lat, lng: r.lng });
     setMapZoom(13);
-    setMapMarkers([{ lat: r.lat, lng: r.lng, title: r.display_name }]);
+    setMapMarkers([{ lat: r.lat, lng: r.lng, title: r.display_name, color: "blue" }]);
     setLastSearchResult(r);
     setItemName(r.display_name); 
+    setPoiMarkers([]); 
   };
 
   const handleItemNameChange = (e) => {
     setItemName(e.target.value);
     setLastSearchResult(null);
   };
+
+  // NOVO: Função chamada ao clicar num marcador do mapa
+  const handleMarkerClick = (marker) => {
+    // Remove emojis do título para ficar mais limpo no input
+    const cleanName = marker.title.replace(/^[^a-zA-Z0-9]*\s?/, ''); 
+    
+    setItemName(cleanName);
+    setLastSearchResult({
+      lat: marker.lat,
+      lng: marker.lng,
+      display_name: cleanName
+    });
+    
+    // Opcional: Centraliza no ponto clicado
+    // setMapCenter({ lat: marker.lat, lng: marker.lng });
+  };
   
   async function fetchWeather(lat, lng) {
-    if (!OWM_KEY) {
-      // console.log("Sem chave VITE_OPENWEATHER_KEY, pulando busca de clima."); // REMOVIDO
-      return null;
-    }
+    if (!OWM_KEY) return null;
     const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${OWM_KEY}&units=metric&lang=pt_br`;
     try {
       const res = await fetch(url);
@@ -113,18 +121,24 @@ export default function Site() {
       return;
     }
     setIsAddingItem(true);
+    
+    const lat = lastSearchResult ? lastSearchResult.lat : null;
+    const lng = lastSearchResult ? lastSearchResult.lng : null;
+
     const newItem = {
       id: Date.now(),
       name: itemName.trim(),
       time: itineraryTime,
-      lat: lastSearchResult ? lastSearchResult.lat : null,
-      lng: lastSearchResult ? lastSearchResult.lng : null,
+      lat: lat,
+      lng: lng,
       weather: null,
     };
+
     if (newItem.lat && newItem.lng) {
       const weatherInfo = await fetchWeather(newItem.lat, newItem.lng);
       newItem.weather = weatherInfo;
     }
+
     setItineraryDays(prevDays => {
       const currentDayList = prevDays[activeDayKey] || [];
       const updatedDayList = [...currentDayList, newItem];
@@ -133,9 +147,10 @@ export default function Site() {
         [activeDayKey]: updatedDayList,
       };
     });
+
     setLastSearchResult(null);
     setItemName("");
-    setMapMarkers([]);
+    setMapMarkers([]); // Limpa marcador de busca (opcional: manter POIs)
     setIsAddingItem(false);
   };
 
@@ -198,7 +213,7 @@ export default function Site() {
       const displayName = formatPhotonFeature(firstFeature);
       setItemName(displayName);
       setLastSearchResult({ lat, lng, display_name: displayName, raw: firstFeature });
-      setMapMarkers([{ lat, lng, title: displayName }]);
+      setMapMarkers([{ lat, lng, title: displayName, color: "blue" }]);
       setMapCenter({ lat, lng });
       setMapZoom(13);
     } catch (err) {
@@ -211,7 +226,75 @@ export default function Site() {
     }
   }
 
-  // --- Lógica de Rota ---
+  const fetchPOIs = async () => {
+    const radius = 5000; // 5km
+    const { lat, lng } = mapCenter;
+
+    if (lat === 20 && lng === 0) {
+      alert("Mova o mapa para uma cidade antes de explorar.");
+      return;
+    }
+
+    console.log(`🔍 Buscando POIs via Overpass em ${lat}, ${lng}...`);
+    setIsLoadingPOIs(true);
+    setPoiMarkers([]); 
+
+    const query = `
+      [out:json];
+      (
+        node["tourism"](around:${radius},${lat},${lng});
+        node["amenity"="restaurant"](around:${radius},${lat},${lng});
+        node["amenity"="cafe"](around:${radius},${lat},${lng});
+      );
+      out 30;
+    `;
+
+    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.elements || data.elements.length === 0) {
+        alert("Nenhum ponto encontrado nesta área.");
+      } else {
+        const newMarkers = data.elements.map(el => {
+          let tipo = "Local";
+          let cor = "blue";
+
+          if (el.tags.tourism) {
+            tipo = "Turismo";
+            cor = "gold"; 
+          } else if (el.tags.amenity === "restaurant" || el.tags.amenity === "cafe") {
+            tipo = "Comida";
+            cor = "red"; 
+          }
+
+          if (!el.tags.name) return null;
+
+          return {
+            lat: el.lat,
+            lng: el.lon,
+            title: `📍 ${el.tags.name}`, // Título que aparecerá no input
+            isPoi: true,
+            color: cor 
+          };
+        }).filter(Boolean);
+
+        if (newMarkers.length === 0) {
+           alert("Encontramos locais, mas sem nome cadastrado.");
+        } else {
+           setPoiMarkers(newMarkers);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Erro Overpass:", err);
+      alert("Erro ao buscar pontos. Tente novamente.");
+    } finally {
+      setIsLoadingPOIs(false);
+    }
+  };
+
   async function fetchRoute(locations) {
     if (!locations || locations.length < 2) {
       alert("São necessários pelo menos 2 pontos para traçar uma rota.");
@@ -282,12 +365,14 @@ export default function Site() {
     setRouteInfo(null);
     setPontoA(null);
     setPontoB(null);
+    setPoiMarkers([]); 
     if (rotaAtiva) {
       setRotaAtiva(false);
     }
-    setMapCenter({ lat: 20, lng: 0 });
-    setMapZoom(2);
+    setMapCenter({ lat: -22.9068, lng: -43.1729 });
+    setMapZoom(13);
   };
+
   const handleRouteItinerary = () => {
     const locations = activeItineraryList.filter(item => item.lat && item.lng);
     locations.sort((a, b) => a.time.localeCompare(b.time));
@@ -311,6 +396,7 @@ export default function Site() {
       fetchReverseGeocode(pos.lat, pos.lng);
     }
   }
+
   function toggleRota() {
     const next = !rotaAtiva;
     setRotaAtiva(next);
@@ -324,142 +410,80 @@ export default function Site() {
     }
   }
 
-  // MODIFICADO: Função 'Salvar' não imprime mais no console
   const handleSaveTrip = () => {
-    // console.log("Salvando Viagem:", { // REMOVIDO
-    //   id: viagemId,
-    //   dias: itineraryDays
-    // });
-    
-    alert("Falto o backend, calmo!");
-    
-    // fetch(`/api/viagem/${viagemId}`, {
-    //   method: 'PUT', // ou 'POST'
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ dias: itineraryDays })
-    // })
-    // .then(res => res.json())
-    // .then(data => alert("Viagem salva com sucesso!"));
+    alert("Viagem salva no console! (Backend ainda não implementado)");
   };
-
 
   const itineraryMarkers = (activeItineraryList || [])
     .filter(item => item.lat && item.lng)
     .map(item => ({
       lat: item.lat,
       lng: item.lng,
-      title: `${item.time} - ${item.name}`
+      title: `${item.time} - ${item.name}`,
+      color: "green" 
   }));
 
   const markersForMap = [
     ...mapMarkers,
     ...itineraryMarkers,
-    pontoA && { lat: pontoA.lat, lng: pontoA.lng, title: "Ponto A" },
-    pontoB && { lat: pontoB.lat, lng: pontoB.lng, title: "Ponto B" },
+    ...poiMarkers, 
+    pontoA && { lat: pontoA.lat, lng: pontoA.lng, title: "Ponto A", color: "black" },
+    pontoB && { lat: pontoB.lat, lng: pontoB.lng, title: "Ponto B", color: "black" },
   ].filter(Boolean);
 
   return (
     <div className="bg-light min-vh-100">
-      {/* 🔹 NAVBAR */}
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
          <div className="container">
           <Link className="navbar-brand fw-bold" to="/viagens"> 
             <FaRoute className="me-2" />
             TripWay
           </Link>
-          <button
-            className="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbarNav"
-          >
+          <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span className="navbar-toggler-icon"></span>
           </button>
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav me-auto">
-              <li className="nav-item">
-                <Link className="nav-link" to="/viagens">Minhas Viagens</Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link active" to={`/viagem/${viagemId}`}>Editor</Link>
-              </li>
+              <li className="nav-item"><Link className="nav-link" to="/viagens">Minhas Viagens</Link></li>
+              <li className="nav-item"><Link className="nav-link active" to={`/viagem/${viagemId}`}>Editor</Link></li>
             </ul>
             <ul className="navbar-nav ms-auto">
-              <li className="nav-item me-2">
-                <button 
-                  className="btn btn-success d-flex align-items-center"
-                  onClick={handleSaveTrip}
-                >
-                  Salvar Viagem
-                </button>
-              </li>
-              <li className="nav-item">
-                <LogoutButton className="nav-link btn btn-link text-decoration-none" />
-              </li>
+              <li className="nav-item me-2"><button className="btn btn-success d-flex align-items-center" onClick={handleSaveTrip}><FaSave className="me-1" /> Salvar Viagem</button></li>
+              <li className="nav-item"><LogoutButton className="nav-link btn btn-link text-decoration-none" /></li>
             </ul>
           </div>
         </div>
       </nav>
 
-      {/* 🔹 CABEÇALHO */}
       <header className="text-center py-5 bg-white shadow-sm">
          <h1 className="display-5 fw-bold text-primary mb-3">Editor de Roteiro</h1>
-        <p className="lead text-secondary">
-          Monte o itinerário perfeito para sua viagem.
-        </p>
+        <p className="lead text-secondary">Monte o itinerário perfeito para sua viagem.</p>
       </header>
 
-      {/* 🔹 MAPA INTERATIVO */}
       <div className="container my-4">
         <h5 className="mb-3">Mapa Interativo</h5>
-        <div className="d-flex align-items-center gap-2">
-          <BuscaMapa
-            onResult={onBuscaResult}
-            placeholder="Buscar local para adicionar..."
-            disabled={isGeocoding || isLoadingRoute || isAddingItem}
-          />
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <BuscaMapa onResult={onBuscaResult} placeholder="Buscar local..." disabled={isGeocoding || isLoadingRoute || isAddingItem} />
+          
+          <button 
+            className="btn btn-info text-white" 
+            onClick={fetchPOIs}
+            disabled={isLoadingPOIs || rotaAtiva}
+            title="Buscar atrações e restaurantes (Raio 5km)"
+          >
+            {isLoadingPOIs ? <span className="spinner-border spinner-border-sm"></span> : <><FaLandmark className="me-1" /> Explorar</>}
+          </button>
+
           <div className="d-flex align-items-center gap-2 ms-auto">
-            <button 
-              className={`btn btn-sm ${rotaAtiva ? "btn-danger" : "btn-primary"}`} 
-              onClick={toggleRota}
-              disabled={isGeocoding || isLoadingRoute || isAddingItem}
-            >
-              {rotaAtiva ? "Cancelar" : "Rota A/B"}
-            </button>
-            <select
-              className="form-select form-select-sm"
-              style={{ maxWidth: 160 }}
-              value={routeProfile}
-              onChange={(e) => setRouteProfile(e.target.value)}
-              title="Modo de transporte (ORS)"
-              disabled={isGeocoding || isLoadingRoute || isAddingItem}
-            >
+            <button className={`btn btn-sm ${rotaAtiva ? "btn-danger" : "btn-primary"}`} onClick={toggleRota} disabled={isGeocoding || isLoadingRoute || isAddingItem}>{rotaAtiva ? "Cancelar" : "Rota A/B"}</button>
+            <select className="form-select form-select-sm" style={{ maxWidth: 160 }} value={routeProfile} onChange={(e) => setRouteProfile(e.target.value)} title="Modo de transporte (ORS)" disabled={isGeocoding || isLoadingRoute || isAddingItem}>
               <option value="driving-car">Carro</option>
               <option value="cycling-regular">Bicicleta</option>
               <option value="foot-walking">A pé</option>
             </select>
-            <button
-              className="btn btn-sm btn-outline-secondary"
-              onClick={handleClearRoute}
-              disabled={!routeGeoJSON && !pontoA}
-              title="Limpar rota do mapa"
-            >
-              <FaTimes />
-            </button>
-            {isLoadingRoute && (
-              <div className="spinner-border spinner-border-sm text-primary ms-2" role="status">
-                <span className="visually-hidden">Carregando rota...</span>
-              </div>
-            )}
-            <div className="ms-2" style={{minWidth: "120px", textAlign: "right"}}>
-              <small className="text-muted">
-                {routeInfo
-                  ? routeInfo.fallback
-                    ? "Rota (linha reta)"
-                    : `Dist: ${routeInfo.distance ? (routeInfo.distance / 1000).toFixed(1) + " km" : "—"} • ${routeInfo.duration ? Math.round(routeInfo.duration / 60) + " min" : "—"}`
-                  : ""}
-              </small>
-            </div>
+            <button className="btn btn-sm btn-outline-secondary" onClick={handleClearRoute} disabled={!routeGeoJSON && !pontoA && poiMarkers.length === 0} title="Limpar mapa"><FaTimes /></button>
+            {isLoadingRoute && <div className="spinner-border spinner-border-sm text-primary ms-2"></div>}
+            <div className="ms-2" style={{minWidth: "120px", textAlign: "right"}}><small className="text-muted">{routeInfo ? (routeInfo.fallback ? "Rota (linha reta)" : `Dist: ${routeInfo.distance ? (routeInfo.distance / 1000).toFixed(1) + " km" : "—"} • ${routeInfo.duration ? Math.round(routeInfo.duration / 60) + " min" : "—"}`) : ""}</small></div>
           </div>
         </div>
         <div className="mt-3">
@@ -470,188 +494,63 @@ export default function Site() {
             routeGeoJSON={routeGeoJSON}
             height={420}
             onClickMap={handleClickMapa}
+            onMarkerClick={handleMarkerClick} // NOVO: Passando a função
           />
         </div>
         <div className="mt-2">
           <small className="text-muted d-flex align-items-center">
-            {isGeocoding ? (
-              <>
-                <div className="spinner-border spinner-border-sm me-2" role="status"></div>
-                Identificando local...
-              </>
-            ) : rotaAtiva ? (
-              "Modo Rota A/B ativado — clique no mapa para Ponto A e Ponto B."
-            ) : (
-              <>
-                <FaMapMarkerAlt className="me-2" />
-                Clique no mapa ou use a busca para selecionar um local.
-              </>
-            )}
+            {isGeocoding ? <div className="spinner-border spinner-border-sm me-2"></div> : rotaAtiva ? "Modo Rota A/B ativado." : <><FaMapMarkerAlt className="me-2" /> Clique no mapa ou num marcador para selecionar.</>}
           </small>
         </div>
       </div>
 
-      {/* 🔹 PAINEL: ADICIONAR AO ROTEIRO */}
       <div className="container my-4 p-4 bg-white shadow-sm rounded-3">
          <h4 className="fw-bold text-primary mb-3">Adicionar ao Roteiro</h4>
         <div className="row g-3 align-items-end">
           <div className="col-md-2">
-            <label htmlFor="itemTime" className="form-label fw-bold small">Horário</label>
-            <input
-              type="time"
-              id="itemTime"
-              className="form-control"
-              value={itineraryTime}
-              onChange={(e) => setItineraryTime(e.target.value)}
-              disabled={isAddingItem}
-            />
+            <label className="form-label fw-bold small">Horário</label>
+            <input type="time" className="form-control" value={itineraryTime} onChange={(e) => setItineraryTime(e.target.value)} disabled={isAddingItem} />
           </div>
           <div className="col-md-8">
-            <label htmlFor="itemName" className="form-label fw-bold small">Atividade ou Local</label>
-            <input
-              type="text"
-              id="itemName"
-              className="form-control"
-              placeholder={`Adicionar em ${activeDayKey}...`}
-              value={itemName}
-              onChange={handleItemNameChange}
-              disabled={isAddingItem}
-            />
+            <label className="form-label fw-bold small">Atividade ou Local</label>
+            <input type="text" className="form-control" placeholder={`Adicionar em ${activeDayKey}...`} value={itemName} onChange={handleItemNameChange} disabled={isAddingItem} />
             
           </div>
           <div className="col-md-2">
-            <button
-              className="btn btn-success w-100"
-              onClick={handleAddItem}
-              disabled={!itemName.trim() || !itineraryTime || isGeocoding || isLoadingRoute || isAddingItem}
-            >
-              {isAddingItem ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                  Adicionando...
-                </>
-              ) : (
-                <><FaPlus className="me-1" /> Adicionar</>
-              )}
-            </button>
+            <button className="btn btn-success w-100" onClick={handleAddItem} disabled={!itemName.trim() || !itineraryTime || isGeocoding || isLoadingRoute || isAddingItem}>{isAddingItem ? "Adicionando..." : <><FaPlus className="me-1" /> Adicionar</>}</button>
           </div>
         </div>
       </div>
 
-      {/* 🔹 LISTA DO ITINERÁRIO */}
       <div className="container my-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h3 className="fw-bold text-primary mb-0">Itinerário de {activeDayKey}</h3>
-          <button 
-            className="btn btn-primary"
-            onClick={handleRouteItinerary}
-            disabled={activeItineraryList.filter(item => item.lat).length < 2 || isLoadingRoute}
-          >
-            <FaRoute className="me-2" />
-            {isLoadingRoute ? "Calculando..." : `Traçar Rota (${activeDayKey})`}
-          </button>
+          <button className="btn btn-primary" onClick={handleRouteItinerary} disabled={activeItineraryList.filter(item => item.lat).length < 2 || isLoadingRoute}><FaRoute className="me-2" /> {isLoadingRoute ? "Calculando..." : `Traçar Rota (${activeDayKey})`}</button>
         </div>
-
         <ul className="nav nav-tabs mb-3">
           {Object.keys(itineraryDays).map(dayKey => (
             <li className="nav-item" key={dayKey}>
-              <button
-                className={`nav-link d-flex align-items-center ${activeDayKey === dayKey ? "active fw-bold" : ""}`}
-                onClick={() => setActiveDayKey(dayKey)}
-              >
+              <button className={`nav-link d-flex align-items-center ${activeDayKey === dayKey ? "active fw-bold" : ""}`} onClick={() => setActiveDayKey(dayKey)}>
                 {dayKey}
-                {Object.keys(itineraryDays).length > 1 && (
-                  <span
-                    className="btn btn-sm btn-outline-danger ms-2 p-0 px-1"
-                    style={{ fontSize: "0.7em", lineHeight: "1" }}
-                    title={`Remover ${dayKey}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveDay(dayKey);
-                    }}
-                  >
-                    <FaTimes />
-                  </span>
-                )}
+                {Object.keys(itineraryDays).length > 1 && <span className="btn btn-sm btn-outline-danger ms-2 p-0 px-1" onClick={(e) => { e.stopPropagation(); handleRemoveDay(dayKey); }}><FaTimes /></span>}
               </button>
             </li>
           ))}
-          <li className="nav-item">
-            <button className="nav-link" onClick={handleAddDay}>
-              <FaPlus /> Adicionar Dia
-            </button>
-          </li>
+          <li className="nav-item"><button className="nav-link" onClick={handleAddDay}><FaPlus /> Adicionar Dia</button></li>
         </ul>
-
         <div className="list-group shadow-sm">
-          {activeItineraryList.length === 0 && (
-            <div className="list-group-item">
-              <p className="text-muted mb-0">
-                Este dia está vazio. Use o painel acima para adicionar locais ou atividades.
-              </p>
-            </div>
-          )}
-          
-          {activeItineraryList
-            .sort((a, b) => a.time.localeCompare(b.time))
-            .map((item) => (
+          {activeItineraryList.length === 0 && <div className="list-group-item"><p className="text-muted mb-0">Dia vazio.</p></div>}
+          {activeItineraryList.sort((a, b) => a.time.localeCompare(b.time)).map((item) => (
               <div key={item.id} className="list-group-item d-flex justify-content-between align-items-center">
                 <div className="d-flex align-items-center flex-wrap">
-                  <span 
-                    className="badge bg-primary rounded-pill me-3" 
-                    style={{ minWidth: "60px", fontSize: "0.9em", padding: "0.5em 0.7em" }}
-                  >
-                    {item.time}
-                  </span>
-                  <strong className="ms-2 me-2">{item.name}</strong>
-                  {!item.lat && (
-                    <span className="badge bg-light text-dark ms-2">Manual</span>
-                  )}
-                  
-                  {item.weather && (
-                    <span className="ms-2 text-muted small d-flex align-items-center" style={{fontSize: "0.9em"}}>
-                      {item.weather.icon ? (
-                        <img 
-                          src={`https://openweathermap.org/img/wn/${item.weather.icon}.png`} 
-                          alt="clima" 
-                          style={{width: "24px", height: "24px", marginRight: "4px"}}
-                        />
-                      ) : (
-                        <FaCloudSun className="me-1" />
-                      )}
-                      {item.weather.text}
-                    </span>
-                  )}
+                  <span className="badge bg-primary rounded-pill me-3">{item.time}</span> <strong className="ms-2 me-2">{item.name}</strong> {!item.lat && <span className="badge bg-light text-dark ms-2">Manual</span>} {item.weather && <span className="ms-2 text-muted small d-flex align-items-center" style={{fontSize: "0.9em"}}>{item.weather.icon ? <img src={`https://openweathermap.org/img/wn/${item.weather.icon}.png`} alt="clima" style={{width: "24px", height: "24px"}} /> : <FaCloudSun className="me-1" />} {item.weather.text}</span>}
                 </div>
-                <div className="ms-auto">
-                  <button 
-                    className="btn btn-sm btn-outline-secondary me-1" 
-                    onClick={() => handleViewItem(item)}
-                    title="Ver no mapa"
-                    disabled={!item.lat}
-                  >
-                    Ver
-                  </button>
-                  <button 
-                    className="btn btn-sm btn-outline-danger" 
-                    onClick={() => handleRemoveItem(item.id)}
-                    title="Remover"
-                  >
-                    Remover
-                  </button>
-                </div>
+                <div className="ms-auto"><button className="btn btn-sm btn-outline-secondary me-1" onClick={() => handleViewItem(item)} title="Ver" disabled={!item.lat}>Ver</button><button className="btn btn-sm btn-outline-danger" onClick={() => handleRemoveItem(item.id)} title="Remover">Remover</button></div>
               </div>
             ))}
         </div>
       </div>
-      
-      {/* 🔹 FOOTER */}
-      <footer className="container py-4 mt-5 border-top">
-        <p className="text-center text-muted">
-          &copy; 2025 TripWay. Todos os direitos reservados.
-        </p>
-      </footer>
-      
+      <footer className="container py-4 mt-5 border-top"><p className="text-center text-muted">&copy; 2025 TripWay. Todos os direitos reservados.</p></footer>
     </div>
   );
 }

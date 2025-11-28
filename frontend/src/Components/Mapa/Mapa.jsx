@@ -4,30 +4,30 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, GeoJSON, useMapEvents }
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-// Corrige ícone padrão do Leaflet em bundlers modernos
-const DefaultIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+// Função para criar ícones coloridos dinamicamente
+const getMarkerIcon = (color = "blue") => {
+  return new L.Icon({
+    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  });
+};
 
-/* Atualiza a view quando "center" mudar */
 function ChangeView({ center, zoom }) {
   const map = useMap();
   useEffect(() => {
     if (center && typeof center.lat === "number" && typeof center.lng === "number") {
       try {
         map.setView([center.lat, center.lng], zoom);
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) { /* ignore */ }
     }
   }, [center, zoom, map]);
   return null;
 }
 
-/* Ajusta bounds para caber o GeoJSON (rota) */
 function FitBounds({ geojson }) {
   const map = useMap();
   useEffect(() => {
@@ -45,7 +45,6 @@ function FitBounds({ geojson }) {
   return null;
 }
 
-/* Captura cliques no mapa e repassa via onClickMap prop */
 function ClickHandler({ onClickMap }) {
   useMapEvents({
     click(e) {
@@ -63,9 +62,9 @@ export default function Mapa({
   routeGeoJSON = null,
   zoom = 13,
   onClickMap = null,
+  onMarkerClick = null, // NOVO: Prop para clique no marcador
   height = "70vh",
 }) {
-  // safe defaults
   const safeCenter = {
     lat: Number(center?.lat) || -15.793889,
     lng: Number(center?.lng) || -47.882778,
@@ -78,26 +77,41 @@ export default function Mapa({
       style={{ height: typeof height === "number" ? `${height}px` : height, width: "100%", borderRadius: "12px" }}
     >
       <ChangeView center={safeCenter} zoom={zoom} />
+      
+      <TileLayer 
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
+      />
 
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-
-      {/* captura cliques */}
       <ClickHandler onClickMap={onClickMap} />
 
-      {/* marcadores */}
       {Array.isArray(markers) &&
         markers.map((m, i) => {
           const lat = Number(m?.lat);
           const lng = Number(m?.lng);
           if (!isFinite(lat) || !isFinite(lng)) return null;
+          
           return (
-            <Marker key={i} position={[lat, lng]}>
-              <Popup>{m?.title || m?.display_name || "Local"}</Popup>
+            <Marker 
+              key={i} 
+              position={[lat, lng]} 
+              icon={getMarkerIcon(m.color || "blue")} 
+              // NOVO: Evento de clique no marcador
+              eventHandlers={{
+                click: () => {
+                  if (onMarkerClick) onMarkerClick(m);
+                },
+              }}
+            >
+              <Popup>
+                <strong>{m?.title || "Local"}</strong>
+                {m.isPoi && <br/>}
+                {m.isPoi && <small style={{color: "gray"}}>Clique para selecionar</small>}
+              </Popup>
             </Marker>
           );
         })}
 
-      {/* rota / geojson */}
       {routeGeoJSON && (
         <>
           <GeoJSON data={routeGeoJSON} style={() => ({ color: "#1976d2", weight: 5, opacity: 0.9 })} />
