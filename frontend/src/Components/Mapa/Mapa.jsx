@@ -4,7 +4,6 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, GeoJSON, useMapEvents }
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-// Função para criar ícones coloridos dinamicamente
 const getMarkerIcon = (color = "blue") => {
   return new L.Icon({
     iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
@@ -28,6 +27,7 @@ function ChangeView({ center, zoom }) {
   return null;
 }
 
+// CORREÇÃO AQUI: Removido .isEmpty() que causava erro
 function FitBounds({ geojson }) {
   const map = useMap();
   useEffect(() => {
@@ -35,7 +35,7 @@ function FitBounds({ geojson }) {
     try {
       const layer = L.geoJSON(geojson);
       const bounds = layer.getBounds();
-      if (bounds.isValid && !bounds.isEmpty()) {
+      if (bounds.isValid()) { // Apenas isValid()
         map.fitBounds(bounds, { padding: [40, 40] });
       }
     } catch (e) {
@@ -62,7 +62,7 @@ export default function Mapa({
   routeGeoJSON = null,
   zoom = 13,
   onClickMap = null,
-  onMarkerClick = null, // NOVO: Prop para clique no marcador
+  onMarkerClick = null, 
   height = "70vh",
 }) {
   const safeCenter = {
@@ -96,7 +96,6 @@ export default function Mapa({
               key={i} 
               position={[lat, lng]} 
               icon={getMarkerIcon(m.color || "blue")} 
-              // NOVO: Evento de clique no marcador
               eventHandlers={{
                 click: () => {
                   if (onMarkerClick) onMarkerClick(m);

@@ -7,7 +7,7 @@ import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom"
 import Login from './Components/Paginas/Login.jsx';
 import SingIn from './Components/Paginas/SingIn.jsx';
 import Site from './Components/Paginas/Site.jsx';
-import MinhasViagens from './Components/Paginas/MinhasViagens.jsx'; // NOVO: Importar
+import MinhasViagens from './Components/Paginas/MinhasViagens.jsx';
 
 import RequireAuth from './auth/RequireAuth.jsx';
 import RedirectIfAuthed from './auth/RedirectIfAuthed.jsx';
@@ -16,13 +16,14 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
 const router = createBrowserRouter([
-  // MODIFICADO: Redireciona para /viagens se logado
+  // Rota pública (Login)
   { path: "/", element: (
       <RedirectIfAuthed>
         <Login />
       </RedirectIfAuthed>
     )
   },
+  // Rota pública (Cadastro)
   { path: "/SingIn", element: (
       <RedirectIfAuthed>
         <SingIn />
@@ -30,23 +31,23 @@ const router = createBrowserRouter([
     )
   },
 
-  // NOVO: Rota principal do Dashboard (protegida)
+  // CORREÇÃO AQUI: Rota protegida do Dashboard
   { path: "/viagens", element: (
-      
+      <RequireAuth>
         <MinhasViagens />
-      
+      </RequireAuth>
     )
   },
 
-  // MODIFICADO: Rota do editor agora é dinâmica
+  // CORREÇÃO AQUI: Rota protegida do Editor
   { path: "/viagem/:viagemId", element: (
-      
+      <RequireAuth>
         <Site />
-      
+      </RequireAuth>
     )
   },
 
-  // MODIFICADO: Fallback agora redireciona para a rota base correta
+  // Fallback
   { path: "*", element: <Navigate to="/viagens" replace /> }
 ]);
 

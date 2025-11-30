@@ -3,10 +3,12 @@ import { useState } from "react";
 import { FaUser, FaLock } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import "./Login.css";
-import { setAuth } from "../../auth/authStorage"; // ajuste o caminho se seu arquivo estiver em outro lugar
+import { setAuth } from "../../auth/authStorage";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000").replace(/\/$/, "");
-const API_LOGIN_URL = `${API_BASE}/login/`;
+
+// 1. CORREÇÃO: Adicionado "/api" no caminho
+const API_LOGIN_URL = `${API_BASE}/api/login/`;
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -21,7 +23,7 @@ export default function Login() {
     setError("");
 
     if (!email.trim() || !password.trim()) {
-      setError("Por favor, preencha o email e a senha.");
+      setError("Por favor, preencha o usuário e a senha.");
       return;
     }
 
@@ -30,20 +32,20 @@ export default function Login() {
       const resp = await fetch(API_LOGIN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // O backend espera 'email', mas estamos enviando o username nesse campo
         body: JSON.stringify({ email, password }),
-        // credentials: "include",
       });
 
       const data = await resp.json().catch(() => ({}));
 
       if (resp.ok) {
         setAuth(data?.user, remember);
-        navigate("/viagens"); // MODIFICADO: Redireciona para o novo dashboard
+        navigate("/viagens");
       } else {
-        setError(data.error || data.message || `Erro ${resp.status}`);
+        setError(data.error || "Usuário ou senha incorretos.");
       }
     } catch {
-      setError("Não foi possível conectar ao servidor. Verifique a URL.");
+      setError("Não foi possível conectar ao servidor. Verifique se o Django está rodando.");
     } finally {
       setLoading(false);
     }
@@ -62,13 +64,14 @@ export default function Login() {
 
                 <form onSubmit={handleSubmit} noValidate>
                   <div className="mb-3">
-                    <label htmlFor="email" className="form-label mb-1"><b>Email</b></label>
+                    <label htmlFor="email" className="form-label mb-1"><b>Usuário</b></label>
                     <div className="input-group">
                       <span className="input-group-text"><FaUser /></span>
+                      {/* 2. CORREÇÃO: Mudado type para "text" para aceitar "admin" */}
                       <input
                         id="email"
-                        type="email"
-                        placeholder="Email"
+                        type="text" 
+                        placeholder="Nome de usuário ou email"
                         className="form-control"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -107,7 +110,7 @@ export default function Login() {
                       <label className="form-check-label" htmlFor="remember">Lembre de mim</label>
                     </div>
                     <p className="m-0 small">
-                      Não possui conta? <Link to="/SingIn">Click aki</Link>
+                      Não possui conta? <Link to="/SingIn">Criar conta</Link>
                     </p>
                   </div>
 

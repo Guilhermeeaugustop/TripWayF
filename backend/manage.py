@@ -3,11 +3,6 @@
 import os
 import sys
 
-# CORREÇÃO CRÍTICA AQUI:
-# Garante que o diretório atual ('backend/') seja o primeiro lugar
-# onde o Python procura por módulos (como 'tripway_project').
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-# FIM DA CORREÇÃO
 
 def main():
     """Run administrative tasks."""

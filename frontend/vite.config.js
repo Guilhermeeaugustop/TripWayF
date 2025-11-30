@@ -3,20 +3,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'vite.svg'],
-      
-      // --- MUDANÇA AQUI: Habilita o PWA em modo dev ---
       devOptions: {
         enabled: true
       },
-      // ------------------------------------------------
-      
       manifest: {
         name: 'TripWay',
         short_name: 'TripWay',
@@ -40,5 +35,11 @@ export default defineConfig({
       }
     })
   ],
+  // --- ADICIONE ISSO AQUI ---
+  server: {
+    host: '127.0.0.1', // Força o servidor a rodar neste IP
+    port: 5173,
+  },
+  // --------------------------
   base: "/",
 })

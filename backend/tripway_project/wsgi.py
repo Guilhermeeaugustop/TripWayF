@@ -1,5 +1,5 @@
 """
-WSGI config for meu_projeto project.
+WSGI config for tripway_project project.
 
 It exposes the WSGI callable as a module-level variable named ``application``.
 

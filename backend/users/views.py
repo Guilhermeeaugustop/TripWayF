@@ -1,86 +1,57 @@
 # backend/users/views.py
-import json
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.db import IntegrityError
-from .models import User
-from django.contrib.auth.hashers import make_password, check_password, identify_hasher
+from rest_framework import viewsets, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.models import User
+from .models import Trip
+from .serializers import TripSerializer
 
-@csrf_exempt
-def register_user(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "Método não permitido."}, status=405)
+# MÁGICA: Classe que desativa a verificação CSRF para a API
+from rest_framework.authentication import SessionAuthentication
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return # Pula a checagem de segurança
 
-    try:
-        data = json.loads(request.body or b"{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
-
-    name = (data.get("name") or "").strip()
-    email = (data.get("email") or "").strip().lower()
-    password = (data.get("password") or "")
-
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_view(request):
+    name = request.data.get('name')
+    email = request.data.get('email')
+    password = request.data.get('password')
     if not name or not email or not password:
-        return JsonResponse({"error": "Por favor, preencha todos os campos."}, status=400)
-
-    if User.objects.filter(email__iexact=email).exists():
-        return JsonResponse({"error": "Este e-mail já está cadastrado. Por favor, use outro."}, status=409)
-
+        return Response({'error': 'Preencha todos os campos.'}, status=400)
+    if User.objects.filter(username=email).exists():
+        return Response({'error': 'Email já cadastrado.'}, status=400)
     try:
-        user = User.objects.create(
-            name=name,
-            email=email,
-            password=make_password(password)
-        )
-        return JsonResponse(
-            {"message": "Usuário cadastrado com sucesso!", "user": {"name": user.name, "email": user.email}},
-            status=201
-        )
-    except IntegrityError:
-        return JsonResponse({"error": "Ocorreu um erro inesperado no banco de dados."}, status=500)
+        user = User.objects.create_user(username=email, email=email, password=password, first_name=name)
+        return Response({'message': 'Sucesso!'}, status=201)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
 
-@csrf_exempt
-def login_user(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "Método não permitido."}, status=405)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    email = request.data.get('email')
+    password = request.data.get('password')
+    user = authenticate(username=email, password=password)
+    if user is not None:
+        login(request, user)
+        return Response({
+            "message": "Login realizado",
+            "user": {"id": user.id, "username": user.username, "name": user.first_name}
+        })
+    return Response({"error": "Credenciais inválidas"}, status=400)
 
-    try:
-        data = json.loads(request.body or b"{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+class TripViewSet(viewsets.ModelViewSet):
+    serializer_class = TripSerializer
+    permission_classes = [IsAuthenticated]
+    # AQUI: Usa a autenticação mágica sem CSRF
+    authentication_classes = (CsrfExemptSessionAuthentication,)
 
-    email = (data.get("email") or "").strip()
-    password = (data.get("password") or "")
+    def get_queryset(self):
+        return Trip.objects.filter(user=self.request.user)
 
-    if not email or not password:
-        return JsonResponse({"error": "Email e senha são obrigatórios."}, status=400)
-
-    # busca case-insensitive
-    user = User.objects.filter(email__iexact=email).first()
-    if not user:
-        return JsonResponse({"error": "Usuário não encontrado."}, status=404)
-
-    # tenta validar como hash do Django
-    valid = False
-    try:
-        valid = check_password(password, user.password)
-    except Exception:
-        valid = False
-
-    # se não for hash válido, pode estar em texto puro -> migra no primeiro login
-    if not valid:
-        try:
-            identify_hasher(user.password)  # lança se não for hash
-        except Exception:
-            if password == user.password:   # era texto puro
-                user.password = make_password(password)
-                user.save(update_fields=["password"])
-                valid = True
-
-    if not valid:
-        return JsonResponse({"error": "Senha inválida."}, status=400)
-
-    return JsonResponse({
-        "message": "Login successful",
-        "user": {"name": user.name, "email": user.email}
-    })
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

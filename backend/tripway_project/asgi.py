@@ -1,5 +1,5 @@
 """
-ASGI config for meu_projeto project.
+ASGI config for tripway_project project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 
